@@ -1,4 +1,5 @@
 using System.Linq;
+using Content.Client._ST14.MainHub; // ST14
 using Content.Client.GameTicking;
 using Content.Client.GameTicking.Managers;
 using Content.Client.Lobby;
@@ -216,6 +217,9 @@ public sealed partial class ContentAudioSystem
     private void PlayRestartSound(RoundRestartCleanupEvent ev)
     {
         if (!_configManager.GetCVar(CCVars.RestartSoundsEnabled))
+            return;
+
+        if (_state.CurrentState is ST14HubState) // ST14
             return;
 
         var file = _gameTicker.RestartSound;
