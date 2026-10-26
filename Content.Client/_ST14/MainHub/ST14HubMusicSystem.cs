@@ -1,7 +1,10 @@
 using Content.Client.Audio;
 using Content.Shared.CCVar;
+using Robust.Client.Audio;
+using Robust.Client.ResourceManagement;
 using Robust.Client.State;
 using Robust.Shared.Audio;
+using Robust.Shared.Audio.Components;
 using Robust.Shared.Audio.Systems;
 using Robust.Shared.Configuration;
 using Robust.Shared.Player;
@@ -19,6 +22,7 @@ public sealed partial class ST14HubMusicSystem : EntitySystem
     [Dependency] private IStateManager _state = default!;
     [Dependency] private SharedAudioSystem _audio = default!;
     [Dependency] private ContentAudioSystem _contentAudio = default!;
+    [Dependency] private IResourceCache _resCache = default!;
 
     private const string IntroPath = "/Audio/_ST14/Music/Hub/main_intro.ogg";
     private const string LoopPath = "/Audio/_ST14/Music/Hub/main_loop.ogg";
@@ -41,6 +45,11 @@ public sealed partial class ST14HubMusicSystem : EntitySystem
 
         UpdatesOutsidePrediction = true;
         _state.OnStateChanged += OnStateChanged;
+
+        // Decode both parts now. Loading the 2 MB loop when it is first played froze the hub for ~200-360 ms
+        // right in the middle of the animated background
+        _resCache.TryGetResource<AudioResource>(IntroPath, out _);
+        _resCache.TryGetResource<AudioResource>(LoopPath, out _);
         Subs.CVar(_cfg, CCVars.LobbyMusicEnabled, OnMusicEnabled);
         Subs.CVar(_cfg, CCVars.LobbyMusicVolume, OnVolume);
     }
@@ -94,6 +103,10 @@ public sealed partial class ST14HubMusicSystem : EntitySystem
 
         foreach (var stream in _streams)
         {
+            // the intro is gone once it has played through
+            if (!HasComp<AudioComponent>(stream))
+                continue;
+
             if (fade > 0)
                 _contentAudio.FadeOut(stream, duration: fade);
             else
@@ -113,9 +126,27 @@ public sealed partial class ST14HubMusicSystem : EntitySystem
         _streams.Add(result.Value.Entity);
     }
 
+    /// <summary>
+    /// The server keeps sending lobby audio while the player sits in the hub: round start and restart sounds, announcements,
+    /// votes, admin music and so on. Only the hub theme plays here, everything else is stopped as soon as it appears.
+    /// Interface sounds of the hub are audio sources, not entities, so they are not touched
+    /// </summary>
+    private void SilenceOthers()
+    {
+        var query = EntityQueryEnumerator<AudioComponent>();
+        while (query.MoveNext(out var uid, out _))
+        {
+            if (!_streams.Contains(uid))
+                _audio.Stop(uid);
+        }
+    }
+
     public override void Update(float frameTime)
     {
         base.Update(frameTime);
+
+        if (_state.CurrentState is ST14HubState)
+            SilenceOthers();
 
         if (!_playing || _timing.RealTime < _nextLoop)
             return;

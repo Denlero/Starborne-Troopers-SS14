@@ -165,6 +165,11 @@ public sealed partial class ContentAudioSystem
             return;
 
         _lobbyPlaylist = playlist;
+
+        // ST14: the hub has its own theme, the playlist starts when the player gets to the lobby
+        if (_state.CurrentState is ST14HubState)
+            return;
+
         if (_lobbyPlaylist.Length == 0)
         {
             return;

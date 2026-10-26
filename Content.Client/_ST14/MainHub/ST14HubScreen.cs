@@ -9,7 +9,6 @@ using Content.Client.UserInterface.Systems.EscapeMenu;
 using Content.Client.UserInterface.Systems.Guidebook;
 using Content.Shared._ST14.MainHub;
 using Content.Shared.CCVar;
-using Content.Shared.GameTicking.Prototypes;
 using Robust.Client;
 using Robust.Client.Console;
 using Robust.Client.Graphics;
@@ -31,12 +30,11 @@ public sealed partial class ST14HubScreen : Control
     [Dependency] private IClientConsoleHost _console = default!;
     [Dependency] private IConfigurationManager _cfg = default!;
     [Dependency] private IEntityManager _entMan = default!;
-    [Dependency] private IPrototypeManager _protoMan = default!;
     [Dependency] private IResourceCache _resCache = default!;
     [Dependency] private IUriOpener _uriOpener = default!;
     [Dependency] private IUserInterfaceManager _uiManager = default!;
 
-    private static readonly ProtoId<ST14HubScenePrototype>[] Wallpapers =
+    public static readonly ProtoId<ST14HubScenePrototype>[] Wallpapers =
     {
         "ST14HubOrbit",
         "ST14HubRidge",
@@ -61,14 +59,15 @@ public sealed partial class ST14HubScreen : Control
     private readonly Label _dateLabel;
     private readonly Label _tempLabel;
     private readonly Label _statusLabel;
-    private readonly TextureRect _thumbnail;
-    private readonly ST14HubButton _warButton;
     private readonly ST14HubButton _observeButton;
     private readonly ST14SettingsScreen _settings;
+    private readonly ST14HubLoadingScreen _loading;
+    private readonly ST14ModeSelectScreen _modes;
+    private readonly ST14GalaxyScreen _galaxy;
+    private readonly ST14SupportScreen _support;
 
     private int _newsIndex;
     private TimeSpan _newsElapsed;
-    private ProtoId<LobbyBackgroundPrototype>? _shownBackground;
 
     public ST14HubScreen()
     {
@@ -136,72 +135,52 @@ public sealed partial class ST14HubScreen : Control
         moreButton.OnPressed += _ => _uiManager.GetUIController<ChangelogUIController>().ToggleWindow();
         canvas.AddAt(moreButton, new Vector2(1, 0), new Vector2(-25, 60), new Vector2(400, 70), new Vector2(1, 0.5f));
 
-        // Weather and clock widgets under the banner
-        var weather = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Vertical };
+        // Weather and clock widgets under the banner, every part sits where the original puts it relative to the widget center
+        var weather = new ST14CanvasLayout();
         _tempLabel = ST14HubStyle.Label(_resCache, string.Empty, ST14HubFont.Regular, 30, ST14HubStyle.Widget);
         _tempLabel.Align = Label.AlignMode.Center;
-        weather.AddChild(_tempLabel);
-        weather.AddChild(new TextureRect
+        _tempLabel.VAlign = Label.VAlignMode.Center;
+        weather.AddAt(_tempLabel, new Vector2(0.5f, 0.5f), new Vector2(0, -30), new Vector2(160, 46));
+        weather.AddAt(new TextureRect
         {
             Texture = ST14HubStyle.Tex(_resCache, "weather_sunny.png"),
             Stretch = TextureRect.StretchMode.KeepAspectCentered,
             ModulateSelfOverride = ST14HubStyle.Widget,
-            SetSize = new Vector2(60, 60),
-            HorizontalAlignment = HAlignment.Center,
-        });
+        }, new Vector2(0.5f, 0.5f), new Vector2(0, 20), new Vector2(60, 60));
         canvas.AddAt(weather, new Vector2(1, 0), new Vector2(-215, 136.5f), new Vector2(127.6f, 103.3f), new Vector2(1, 0));
 
-        var clock = new BoxContainer { Orientation = BoxContainer.LayoutOrientation.Vertical };
+        var clock = new ST14CanvasLayout();
         var time = new BoxContainer
         {
             Orientation = BoxContainer.LayoutOrientation.Horizontal,
-            HorizontalAlignment = HAlignment.Center,
+            Align = BoxContainer.AlignMode.Center,
         };
         _hourLabel = ST14HubStyle.Label(_resCache, string.Empty, ST14HubFont.Regular, 40, ST14HubStyle.Widget);
         _minuteLabel = ST14HubStyle.Label(_resCache, string.Empty, ST14HubFont.Regular, 35, ST14HubStyle.Widget);
-        _minuteLabel.VAlign = Label.VAlignMode.Bottom;
-        time.AddChild(_hourLabel);
-        time.AddChild(ST14HubStyle.Label(_resCache, ":", ST14HubFont.Regular, 40, ST14HubStyle.Widget));
-        time.AddChild(_minuteLabel);
-        clock.AddChild(time);
-        clock.AddChild(new PanelContainer
+        var colon = ST14HubStyle.Label(_resCache, ":", ST14HubFont.Regular, 40, ST14HubStyle.Widget);
+        foreach (var part in new[] { _hourLabel, colon, _minuteLabel })
         {
-            PanelOverride = ST14HubStyle.Flat(ST14HubStyle.Widget),
-            SetSize = new Vector2(150, 3.5f),
-            HorizontalAlignment = HAlignment.Center,
-        });
+            part.VAlign = Label.VAlignMode.Center;
+            time.AddChild(part);
+        }
+        clock.AddAt(time, new Vector2(0.5f, 0.5f), new Vector2(0, -28.7f), new Vector2(200, 50));
+        clock.AddAt(new PanelContainer { PanelOverride = ST14HubStyle.Flat(ST14HubStyle.Widget) },
+            new Vector2(0.5f, 0.5f), Vector2.Zero, new Vector2(150, 3.5f));
         _dateLabel = ST14HubStyle.Label(_resCache, string.Empty, ST14HubFont.Regular, 25, ST14HubStyle.Widget);
         _dateLabel.Align = Label.AlignMode.Center;
-        clock.AddChild(_dateLabel);
+        _dateLabel.VAlign = Label.VAlignMode.Center;
+        clock.AddAt(_dateLabel, new Vector2(0.5f, 0.5f), new Vector2(0, 30.7f), new Vector2(242, 40));
         canvas.AddAt(clock, new Vector2(1, 0), new Vector2(-20.4f, 136.5f), new Vector2(170.6f, 103.3f), new Vector2(1, 0));
 
         // Social icons above the bottom bar
         AddLinkIcon(canvas, "discord.png", CCVars.InfoLinksDiscord, new Vector2(-84.2f, -298.2f), 125, 0.53f);
         AddLinkIcon(canvas, "twitter.png", CCVars.InfoLinksWebsite, new Vector2(-84.2f, -165.8f), 103, 0.67f);
 
-        // "Continue" card, here it leads to the lobby and shows the lobby art
-        var card = new ST14HubButton(_resCache, string.Empty, 20) { PressSound = ST14HubSound.Click };
-        card.Label.Visible = false;
-        var cardBox = new ST14CanvasLayout();
-        _thumbnail = new TextureRect { Stretch = TextureRect.StretchMode.KeepAspectCovered, RectClipContent = true };
-        cardBox.Add(_thumbnail, Vector2.Zero, Vector2.One, new Vector2(-1.7f, -12.9f), new Vector2(-26.7f, -47.9f));
-        cardBox.Add(new TextureRect
-        {
-            Texture = ST14HubStyle.Tex(_resCache, "frame.png"),
-            Stretch = TextureRect.StretchMode.Scale,
-        }, Vector2.Zero, Vector2.One, new Vector2(-1.7f, -12.9f), new Vector2(-26.7f, -47.9f));
-        var cardText = ST14HubStyle.Label(_resCache, Loc.GetString("st14-hub-button-lobby").ToUpperInvariant(), ST14HubFont.Regular, 20, Color.White, shadow: true);
-        cardText.Align = Label.AlignMode.Center;
-        cardText.VAlign = Label.VAlignMode.Center;
-        cardBox.Add(cardText, new Vector2(0, 1), new Vector2(1, 1), new Vector2(-3.75f, -12.5f), new Vector2(-7.5f, 26), new Vector2(0.5f, 1));
-        card.AddChild(cardBox);
-        card.OnPressed += _ => HubController.EnterLobby();
-        canvas.AddAt(card, new Vector2(0, 1), new Vector2(RowLeft + 93.84f, -107.3f), new Vector2(187.68f, 176.5f));
+        // "To battle!" opens the mode selection, then the galaxy map, Klendathu there leads to the lobby
+        var warButton = AddPlate(canvas, 0, "st14-hub-button-war", ST14HubStyle.Blue, ST14HubStyle.BlueText);
+        warButton.OnPressed += _ => ShowOverlay(_modes!);
 
-        _warButton = AddPlate(canvas, 0, "st14-hub-button-war", ST14HubStyle.Blue, ST14HubStyle.BlueText);
-        _warButton.OnPressed += _ => GoToWar();
-
-        AddPlate(canvas, 1, "st14-hub-button-character").OnPressed += _ => OpenCharacterSetup();
+        AddPlate(canvas, 1, "st14-hub-button-character").OnPressed += _ => StartLoading(OpenCharacterSetup);
 
         _observeButton = AddPlate(canvas, 2, "st14-hub-button-observe");
         _observeButton.OnPressed += _ => new ObserveWarningWindow().OpenCentered();
@@ -210,6 +189,9 @@ public sealed partial class ST14HubScreen : Control
             _ => _uiManager.GetUIController<GuidebookUIController>().ToggleGuidebook();
 
         AddPlate(canvas, 4, "st14-hub-rules").OnPressed += _ => new RulesAndInfoWindow().Open();
+
+        // supporter perks and the way to Boosty
+        AddPlate(canvas, 5, "st14-hub-button-support", ST14HubStyle.Orange, Color.White).OnPressed += _ => ShowOverlay(_support!);
 
         var settingsButton = new ST14HubIconButton(ST14HubStyle.Tex(_resCache, "gear.png"), ST14HubStyle.Gold);
         settingsButton.OnPressed += _ => _settings!.Show();
@@ -228,6 +210,23 @@ public sealed partial class ST14HubScreen : Control
         _settings.OnOpened += () => _scene.Visible = false;
         AddChild(_settings);
 
+        _modes = new ST14ModeSelectScreen();
+        _modes.OnBack += () => ShowOverlay(null);
+        _modes.OnGalacticWar += () => ShowOverlay(_galaxy);
+        AddChild(_modes);
+
+        _galaxy = new ST14GalaxyScreen();
+        _galaxy.OnBack += () => ShowOverlay(_modes);
+        _galaxy.OnKlendathu += GoToWar;
+        AddChild(_galaxy);
+
+        _support = new ST14SupportScreen();
+        _support.OnBack += () => ShowOverlay(null);
+        AddChild(_support);
+
+        _loading = new ST14HubLoadingScreen();
+        AddChild(_loading);
+
         ShowNews(0);
         UpdateClock();
     }
@@ -235,7 +234,8 @@ public sealed partial class ST14HubScreen : Control
     private ST14HubButton AddPlate(ST14CanvasLayout canvas, int index, string loc, Color? tint = null, Color? textColor = null)
     {
         var button = new ST14HubButton(_resCache, Loc.GetString(loc), 21, tint, textColor);
-        var x = RowLeft + 306.52f + RowStep * index;
+        // the original starts the row with a big "Continue" card, here the plates take its place
+        var x = RowLeft + PlateSize.X / 2 + RowStep * index;
         canvas.AddAt(button, new Vector2(0, 1), new Vector2(x, -54), PlateSize);
         return button;
     }
@@ -255,39 +255,42 @@ public sealed partial class ST14HubScreen : Control
 
     private ST14HubUIController HubController => _uiManager.GetUIController<ST14HubUIController>();
 
+    /// <summary>
+    /// Shows one of the full screen pages above the hub, or the hub itself for null. The hub background is not drawn under them
+    /// </summary>
+    private void ShowOverlay(Control? overlay)
+    {
+        _modes.Visible = overlay == _modes;
+        _galaxy.Visible = overlay == _galaxy;
+        _support.Visible = overlay == _support;
+        _scene.Visible = overlay == null;
+    }
+
+    /// <summary>
+    /// Klendathu on the galaxy map: into the lobby through the loading screen, straight to the join window if the round is on
+    /// </summary>
     private void GoToWar()
     {
-        if (GameTicker.IsGameStarted)
+        StartLoading(() =>
         {
-            new LateJoinGui().OpenCentered();
-            return;
-        }
+            HubController.EnterLobby();
+            if (GameTicker.IsGameStarted)
+                new LateJoinGui().OpenCentered();
+        });
+    }
 
-        // Same as pressing the ready toggle in the lobby
-        _console.ExecuteCommand("toggleready true");
-        if (HubController.EnterLobby().Lobby is not { } lobby)
-            return;
-
-        lobby.ReadyButton.Pressed = true;
-        lobby.ReadyButton.Text = Loc.GetString("lobby-state-player-status-ready");
+    /// <summary>
+    /// Covers the hub with the loading screen of the original and runs the switch once it is shown
+    /// </summary>
+    private void StartLoading(Action then)
+    {
+        _settings.Close();
+        _loading.Start(then);
     }
 
     private void OpenCharacterSetup()
     {
         HubController.EnterLobby().SwitchState(LobbyGui.LobbyGuiState.CharacterSetup);
-    }
-
-    // The card shows the same background the lobby would show
-    private void UpdateThumbnail()
-    {
-        var current = GameTicker.LobbyBackground;
-        if (current == _shownBackground)
-            return;
-
-        _shownBackground = current;
-        _thumbnail.Texture = _protoMan.TryIndex(current, out var proto)
-            ? _resCache.GetResource<TextureResource>(proto.Background).Texture
-            : null;
     }
 
     private void ShowNews(int index)
@@ -296,9 +299,20 @@ public sealed partial class ST14HubScreen : Control
         _newsLabel.Text = Loc.GetString($"st14-hub-news-{_newsIndex + 1}");
     }
 
+    // Labels are only touched when their value changes: a new text means a new layout pass and new strings,
+    // doing that every frame costs time right next to the animated background
+    private int _shownMinute = -1;
+    private bool? _shownStarted;
+    private string? _shownServer;
+
     private void UpdateClock()
     {
         var now = DateTime.Now;
+        var minute = now.Hour * 60 + now.Minute;
+        if (minute == _shownMinute)
+            return;
+
+        _shownMinute = minute;
         _hourLabel.Text = $"{now.Hour:D2}";
         _minuteLabel.Text = $"{now.Minute:D2}";
         _dateLabel.Text = Loc.GetString("st14-hub-date", ("day", now.Day), ("month", Loc.GetString($"st14-hub-month-{now.Month}")));
@@ -311,12 +325,15 @@ public sealed partial class ST14HubScreen : Control
     {
         var serverName = _baseClient.GameInfo?.ServerName ?? string.Empty;
         var started = GameTicker.IsGameStarted;
+        if (started == _shownStarted && serverName == _shownServer)
+            return;
 
+        _shownStarted = started;
+        _shownServer = serverName;
         _statusLabel.Text = Loc.GetString(started ? "st14-hub-status-round" : "st14-hub-status-lobby",
             ("server", serverName));
 
         _observeButton.Disabled = !started;
-        _warButton.Text = Loc.GetString(started ? "st14-hub-button-war-join" : "st14-hub-button-war");
     }
 
     protected override void FrameUpdate(FrameEventArgs args)
@@ -325,8 +342,6 @@ public sealed partial class ST14HubScreen : Control
 
         if (!Visible)
             return;
-
-        UpdateThumbnail();
 
         _newsElapsed += TimeSpan.FromSeconds(args.DeltaSeconds);
         if (_newsElapsed >= NewsInterval)

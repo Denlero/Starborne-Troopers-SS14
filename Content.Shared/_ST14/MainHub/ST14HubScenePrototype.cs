@@ -100,6 +100,9 @@ public sealed partial class ST14HubSceneLayer
     public ST14HubSceneWiggle? Wiggle;
 
     [DataField]
+    public ST14HubSceneDrift? Drift;
+
+    [DataField]
     public List<ST14HubSceneCurve> Curves = new();
 }
 
@@ -133,6 +136,47 @@ public sealed partial class ST14HubSceneWiggle
 
     [DataField]
     public float RotationFrequency;
+}
+
+/// <summary>
+/// Very slow sine motion: the layer grows and shrinks a little and slides a little to the side, without any shake or rotation
+/// </summary>
+[DataDefinition]
+public sealed partial class ST14HubSceneDrift
+{
+    /// <summary>
+    /// Scale change in each direction, 0.015 means 98.5% to 101.5%
+    /// </summary>
+    [DataField]
+    public float Breathe;
+
+    [DataField]
+    public float BreathePeriod = 25f;
+
+    /// <summary>
+    /// Largest shift in canvas pixels
+    /// </summary>
+    [DataField]
+    public Vector2 Offset;
+
+    [DataField]
+    public float OffsetPeriod = 40f;
+
+    /// <summary>
+    /// Start of the cycle as a fraction of the period, so layers do not move in step
+    /// </summary>
+    [DataField]
+    public float Phase;
+
+    /// <summary>
+    /// Straight run across the screen in canvas pixels per second. The layer covers Run * RunPeriod pixels
+    /// centred on its position, then starts over from the other side, so it should be off screen at both ends
+    /// </summary>
+    [DataField]
+    public Vector2 Run;
+
+    [DataField]
+    public float RunPeriod = 10f;
 }
 
 [DataDefinition]

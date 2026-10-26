@@ -1,7 +1,10 @@
 using System.Linq;
+using Content.Client._ST14.Lobby;
 using Content.Client.Lobby;
 using Content.Client.Lobby.UI;
 using Robust.Client;
+using Robust.Client.Graphics;
+using Robust.Client.ResourceManagement;
 using Robust.Client.State;
 using Robust.Client.UserInterface.Controllers;
 using Robust.Client.UserInterface.Controls;
@@ -15,6 +18,7 @@ public sealed partial class ST14HubUIController : UIController, IOnStateEntered<
 {
     [Dependency] private IBaseClient _client = default!;
     [Dependency] private IStateManager _stateManager = default!;
+    [Dependency] private IResourceCache _resCache = default!;
 
     private const string MenuButtonName = "ST14HubMenuButton";
 
@@ -64,6 +68,18 @@ public sealed partial class ST14HubUIController : UIController, IOnStateEntered<
             return;
 
         AddMenuButton(lobby);
+        ApplyHubLook(lobby);
+    }
+
+    /// <summary>
+    /// Lobby in the look of the hub: the animated wallpapers behind it and the panels framed like the hub windows
+    /// </summary>
+    /// <summary>
+    /// Our own lobby screen with animated backgrounds goes over the stock lobby, see <see cref="ST14LobbyScreen"/>
+    /// </summary>
+    private void ApplyHubLook(LobbyGui lobby)
+    {
+        ST14LobbyScreen.Apply(lobby, _resCache, UIManager.Stylesheet!);
     }
 
     private void AddMenuButton(LobbyGui lobby)

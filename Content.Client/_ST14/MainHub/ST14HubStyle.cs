@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Linq;
 using Robust.Client.Graphics;
 using Robust.Client.ResourceManagement;
@@ -14,6 +15,7 @@ public enum ST14HubFont : byte
     SemiBold,
     Bold,
     Slogan,
+    Black,
 }
 
 /// <summary>
@@ -22,6 +24,7 @@ public enum ST14HubFont : byte
 public static class ST14HubStyle
 {
     public const string UiDir = "/Textures/_ST14/Interface/Hub/UI/";
+    public const string WarDir = "/Textures/_ST14/Interface/Hub/War/";
 
     public static readonly Color Gold = Color.FromHex("#D4C48A");
     public static readonly Color GoldLight = Color.FromHex("#F7D68C");
@@ -43,6 +46,7 @@ public static class ST14HubStyle
         [ST14HubFont.SemiBold] = new[] { "/Fonts/_ST14/Orbitron/Orbitron-SemiBold.ttf", "/Fonts/_ST14/Exo2/Exo2-SemiBold.ttf", "/Fonts/NotoSansDisplay/NotoSansDisplay-Bold.ttf" },
         [ST14HubFont.Bold] = new[] { "/Fonts/_ST14/Orbitron/Orbitron-Bold.ttf", "/Fonts/_ST14/Exo2/Exo2-Bold.ttf", "/Fonts/NotoSansDisplay/NotoSansDisplay-Bold.ttf" },
         [ST14HubFont.Slogan] = new[] { "/Fonts/_ST14/Exo2/Exo2-BlackItalic.ttf", "/Fonts/NotoSansDisplay/NotoSansDisplay-BoldItalic.ttf" },
+        [ST14HubFont.Black] = new[] { "/Fonts/_ST14/Orbitron/Orbitron-Black.ttf", "/Fonts/_ST14/Exo2/Exo2-Black.ttf", "/Fonts/NotoSansDisplay/NotoSansDisplay-Bold.ttf" },
     };
 
     private static readonly Dictionary<(ST14HubFont, int), Font> FontCache = new();
@@ -67,12 +71,16 @@ public static class ST14HubStyle
         return cache.GetResource<TextureResource>(UiDir + file).Texture;
     }
 
+    /// <summary>
+    /// UI textures keep the resolution of the original 4K menu and are drawn at half size, margins are in texture pixels
+    /// </summary>
     public static StyleBoxTexture Patch(IResourceCache cache, string file, float left, float top, float right, float bottom, Color? modulate = null)
     {
         var box = new StyleBoxTexture
         {
             Texture = Tex(cache, file),
             Modulate = modulate ?? Color.White,
+            TextureScale = new Vector2(0.5f, 0.5f),
         };
         box.SetPatchMargin(StyleBox.Margin.Left, left);
         box.SetPatchMargin(StyleBox.Margin.Top, top);
@@ -87,7 +95,7 @@ public static class ST14HubStyle
     public static StyleBoxTexture MainButton(IResourceCache cache, Color modulate)
     {
         // patch margins would also eat the content area, the label keeps its own margins instead
-        var box = Patch(cache, "main_button.png", 8, 8, 36, 36, modulate);
+        var box = Patch(cache, "main_button.png", 16, 16, 72, 72, modulate);
         box.SetContentMarginOverride(StyleBox.Margin.All, 0);
         return box;
     }
@@ -97,7 +105,7 @@ public static class ST14HubStyle
     /// </summary>
     public static StyleBoxTexture MainBar(IResourceCache cache)
     {
-        return Patch(cache, "mainbar.png", 0, 4, 0, 64);
+        return Patch(cache, "mainbar.png", 0, 8, 0, 128);
     }
 
     /// <summary>
@@ -105,7 +113,7 @@ public static class ST14HubStyle
     /// </summary>
     public static StyleBoxTexture Window(IResourceCache cache)
     {
-        var box = Patch(cache, "window_style.png", 44, 46, 47, 24);
+        var box = Patch(cache, "window_style.png", 88, 93, 94, 49);
         box.SetContentMarginOverride(StyleBox.Margin.Left, 18);
         box.SetContentMarginOverride(StyleBox.Margin.Right, 22);
         box.SetContentMarginOverride(StyleBox.Margin.Top, 4);
@@ -115,7 +123,7 @@ public static class ST14HubStyle
 
     public static StyleBoxTexture UnitButton(IResourceCache cache, Color? modulate = null)
     {
-        var box = Patch(cache, "unitbutton.png", 13, 13, 13, 13, modulate);
+        var box = Patch(cache, "unitbutton.png", 26, 26, 26, 26, modulate);
         box.SetContentMarginOverride(StyleBox.Margin.All, 0);
         return box;
     }
@@ -149,6 +157,43 @@ public static class ST14HubStyle
         {
             ScaleLabels(child, scale);
         }
+    }
+
+    public static Texture WarTex(IResourceCache cache, string file)
+    {
+        return cache.GetResource<TextureResource>(WarDir + file).Texture;
+    }
+
+    /// <summary>
+    /// Full size texture and its .half.png copy, the copy is drawn when the texture is shown at half size or less
+    /// </summary>
+    public static (Texture Full, Texture Half) WarTexPair(IResourceCache cache, string file)
+    {
+        return (WarTex(cache, file), WarTex(cache, file[..^4] + ".half.png"));
+    }
+
+    public static Texture Pick((Texture Full, Texture Half) pair, float drawnWidth)
+    {
+        return drawnWidth <= pair.Half.Width ? pair.Half : pair.Full;
+    }
+
+    /// <summary>
+    /// Draws a line of text centered on <paramref name="center"/> and turned by <paramref name="degrees"/> clockwise,
+    /// like the slanted banner captions of the original
+    /// </summary>
+    public static void DrawRotatedText(DrawingHandleScreen handle, Font font, string text, Vector2 center, float degrees, Color color,
+        Color? shadow = null)
+    {
+        var baseTransform = handle.GetTransform();
+        var size = handle.GetDimensions(font, text, 1f);
+        handle.SetTransform(Matrix3x2.CreateTranslation(-size / 2) * Matrix3x2.CreateRotation(MathF.PI * degrees / 180f) *
+                            Matrix3x2.CreateTranslation(center) * baseTransform);
+
+        if (shadow is { } shadowColor)
+            handle.DrawString(font, new Vector2(0, size.Y * 0.06f), text, 1f, shadowColor);
+
+        handle.DrawString(font, Vector2.Zero, text, 1f, color);
+        handle.SetTransform(baseTransform);
     }
 
     public static StyleBoxFlat Flat(Color back, Color? border = null, float thickness = 0)

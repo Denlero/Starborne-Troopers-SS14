@@ -1403,7 +1403,7 @@
     scale: 2.0398, 2.0398
     curves:
     - property: PosX
-      keys: [0, 0, 0, -7.24, 481.7, 5, 0, 0, 0, 445.5]
+      keys: [0, 0, 0, -7.24, 521.7, 5, 0, 0, 0, 485.5]
   - id: bug1_arm_front
     parent: bug1
     texture: /Textures/_ST14/Interface/Hub/Wallpapers/bug1_front_arm_front.png
