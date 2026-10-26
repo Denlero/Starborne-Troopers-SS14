@@ -9,6 +9,6 @@
   source: "https://store.steampowered.com/app/1202130/"
 
 - files: ["morita_preview.png"]
-  license: "All-Rights-Reserved"
-  copyright: "Made by PatoGrone, scaled up from the Morita rifle icon of Starborne Troopers"
+  license: "Custom"
+  copyright: "All rights reserved. Made by PatoGrone, scaled up from the Morita rifle icon of Starborne Troopers"
   source: "https://github.com/Denlero/Starborne-Troopers-SS14"
