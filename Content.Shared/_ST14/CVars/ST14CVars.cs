@@ -53,4 +53,10 @@ public static partial class ST14CVars
 
     public static readonly CVarDef<string> PerkNickname =
         CVarDef.Create("st14.perk_nickname", string.Empty, CVar.CLIENTONLY | CVar.ARCHIVE);
+
+    /// <summary>
+    /// Show the main menu hub instead of the lobby after connecting. Integration tests turn it off to get the stock lobby flow
+    /// </summary>
+    public static readonly CVarDef<bool> HubOnConnect =
+        CVarDef.Create("st14.hub_on_connect", true, CVar.CLIENTONLY);
 }

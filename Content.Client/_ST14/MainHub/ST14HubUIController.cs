@@ -1,6 +1,8 @@
 using System.Linq;
 using Content.Client._ST14.Lobby;
 using Content.Client.Lobby;
+using Content.Shared._ST14.CCVar;
+using Robust.Shared.Configuration;
 using Content.Client.Lobby.UI;
 using Robust.Client;
 using Robust.Client.Graphics;
@@ -19,6 +21,7 @@ public sealed partial class ST14HubUIController : UIController, IOnStateEntered<
     [Dependency] private IBaseClient _client = default!;
     [Dependency] private IStateManager _stateManager = default!;
     [Dependency] private IResourceCache _resCache = default!;
+    [Dependency] private IConfigurationManager _cfg = default!;
 
     private const string MenuButtonName = "ST14HubMenuButton";
 
@@ -44,7 +47,7 @@ public sealed partial class ST14HubUIController : UIController, IOnStateEntered<
         if (_stateManager.CurrentState is ST14HubState)
             return true;
 
-        if (_leftHub)
+        if (_leftHub || !_cfg.GetCVar(ST14CVars.HubOnConnect))
             return false;
 
         _stateManager.RequestStateChange<ST14HubState>();
