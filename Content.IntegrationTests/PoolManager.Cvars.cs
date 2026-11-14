@@ -36,6 +36,7 @@ public static partial class PoolManager
         (CCVars.InteractionRateLimitPeriod.Name, "0.1"),
         (CCVars.MovementMobPushing.Name, "false"),
         (CCVars.ResourceUploadingStoreDeletionDays.Name, "0"),
+        (ST14CVars.NoPassenger.Name, "false"), // ST14: the test stations hand out passengers
         (ST14CVars.HubOnConnect.Name, "false"), // ST14: tests expect the stock lobby right after connecting
         (ST14CVars.Atmospherics.Name, "true"), // ST14: the stock tests of atmos, breathing and pressure need it
         (ST14CVars.SectorRounds.Name, "false"), // ST14: tests pick their own maps
